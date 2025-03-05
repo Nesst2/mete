@@ -25,13 +25,14 @@ class TagihanController extends Controller
 
     $query = Vendor::query();
 
+    // Pencarian Vendor (Berlaku untuk Admin dan Sales)
+    if ($request->filled('search')) {
+        $search = $request->input('search');
+        $query->where('nama', 'LIKE', '%' . $search . '%');
+    }
+
     // Filter berdasarkan peran
     if (Auth::user()->role == 'admin') {
-        if ($request->filled('search')) {
-            $search = $request->input('search');
-            $query->where('nama', 'LIKE', '%' . $search . '%');
-        }
-
         if ($request->filled('kota')) {
             $kota = $request->input('kota');
             $query->whereHas('wilayah.daerah', function ($q) use ($kota) {
@@ -45,17 +46,18 @@ class TagihanController extends Controller
         }
     } else if (Auth::user()->role == 'sales') {
         $salesKota = optional(Auth::user()->daerah)->kota;
+
         if ($salesKota) {
             $query->where('status', '!=', 'nonaktif')
                   ->whereHas('wilayah.daerah', function ($q) use ($salesKota) {
                       $q->where('kota', $salesKota);
                   });
         } else {
-            $query->whereRaw('1=0');
+            $query->whereRaw('1=0'); // Jika sales tidak memiliki kota, tampilkan data kosong
         }
     }
 
-    // Jika pengguna mengisi filter tanggal, maka terapkan filter tersebut
+    // Filter berdasarkan tanggal
     if ($request->filled('start_date') && $request->filled('end_date')) {
         $startDate = $request->input('start_date');
         $endDate   = $request->input('end_date');
@@ -66,15 +68,27 @@ class TagihanController extends Controller
             $endDate   = $defaultMax;
         }
 
-        // Hanya vendor yang punya setidaknya satu tagihan dalam range tanggal tersebut yang ditampilkan
-        $query->whereHas('tagihan', function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('tanggal_masuk', [$startDate, $endDate]);
-        });
+        if ($startDate === $endDate) {
+            // Jika tanggal awal dan akhir sama, cari data pada tanggal tersebut
+            $query->whereHas('tagihan', function ($q) use ($startDate) {
+                $q->whereDate('tanggal_masuk', $startDate);
+            });
 
-        // Eager load tagihan dengan filter tanggal
-        $query->with(['tagihan' => function ($q) use ($startDate, $endDate) {
-            $q->whereBetween('tanggal_masuk', [$startDate, $endDate]);
-        }]);
+            // Eager load tagihan dengan filter tanggal
+            $query->with(['tagihan' => function ($q) use ($startDate) {
+                $q->whereDate('tanggal_masuk', $startDate);
+            }]);
+        } else {
+            // Jika tanggal berbeda, cari data di antara tanggal tersebut
+            $query->whereHas('tagihan', function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('tanggal_masuk', [$startDate, $endDate]);
+            });
+
+            // Eager load tagihan dengan filter tanggal
+            $query->with(['tagihan' => function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('tanggal_masuk', [$startDate, $endDate]);
+            }]);
+        }
     } else {
         // Jika filter tanggal tidak diisi, tampilkan semua vendor dan eager load semua tagihan (jika diperlukan)
         $query->with('tagihan');

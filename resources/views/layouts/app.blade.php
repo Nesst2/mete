@@ -41,6 +41,7 @@
             margin-left: 250px; /* Sama dengan lebar sidebar */
             padding: 1rem;
             padding-bottom: calc(70px + env(safe-area-inset-bottom));
+            margin-bottom: 50px;
         }
         
 
@@ -48,13 +49,13 @@
             .container-fluid.main-content {
                 margin-left: 0;
                 padding: 1rem;
-                padding-bottom: calc(70px + env(safe-area-inset-bottom));
+                padding-bottom: calc(60px + env(safe-area-inset-bottom));
             }
         }
         
         /* Margin bawah untuk elemen pagination */
         .pagination {
-            margin-bottom: 50px !important;
+            margin-bottom: 80px !important;
         }
     
         /* Sidebar (desktop) */

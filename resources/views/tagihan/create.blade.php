@@ -3,6 +3,16 @@
 @section('content')
 <div class="container">
     <h2>Tambah Tagihan Vendor: {{ $vendor->nama }}</h2>
+    @if ($vendor->gambar_vendor)
+                <p><strong>Gambar Vendor:</strong></p>
+                <img src="{{ Storage::url($vendor->gambar_vendor) }}" alt="Gambar Vendor" style="width: 200px; height: auto;">
+                <!-- Tombol untuk melihat detail gambar -->
+                <p>
+                    <a href="{{ Storage::url($vendor->gambar_vendor) }}" target="_blank" class="btn btn-info">
+                        Lihat Detail Gambar
+                    </a>
+                </p>
+    @endif
 
     <form action="{{ route('tagihan.store') }}" method="POST">
         @csrf

@@ -88,6 +88,7 @@
     <table class="table table-bordered">
         <thead>
             <tr>
+                <th>Kode Vendor</th>
                 <th>Vendor</th>
                 @if(Auth::user()->role == 'admin')
                     <th>Status</th>
@@ -117,6 +118,9 @@
                 @endphp
 
                 <tr class="{{ $redMark ? 'table-danger' : '' }}">
+                    <td>
+                        {{ $vendor->kode_vendor }} {{-- Menampilkan data kode vendor --}}
+                    </td>
                     <td>
                         {!! $redMark ? '<i class="bi bi-exclamation-circle-fill text-danger"></i> ' : '' !!}
                         {{ $vendor->nama }}
@@ -156,7 +160,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6" class="text-center">Tidak ada data vendor.</td>
+                    <td colspan="7" class="text-center">Tidak ada data vendor.</td>
                 </tr>
             @endforelse
         </tbody>

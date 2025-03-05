@@ -41,7 +41,7 @@
             <a href="{{ route('vendor.edit', $vendor->id) }}" class="btn btn-primary">Edit Vendor</a>
             <a href="{{ route('vendor.index') }}" class="btn btn-secondary">Kembali</a>
             {{-- Jika vendor aktif dan user admin, tampilkan tombol nonaktifkan --}}
-            @if($vendor->status == 'aktif' && Auth::user()->role == 'admin')
+            @if($vendor->status == 'aktif')
                 <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#nonaktifVendorModal" onclick="setVendorId({{ $vendor->id }})">
                     Nonaktifkan Vendor
                 </button>
