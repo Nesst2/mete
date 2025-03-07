@@ -2,7 +2,6 @@
 
 @section('content')
 <div class="container">
-    <h2>Dashboard Sales</h2>
 
     <!-- Grafik Kunjungan Vendor di Kota Anda (Stacked Bar) -->
     <div class="row mb-4">

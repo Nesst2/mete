@@ -2,8 +2,7 @@
 
 @section('content')
 <div class="container">
-    <h2>Dashboard Admin</h2>
-
+    
     <!-- Grafik Kunjungan Vendor per Kota -->
     <div class="row mb-4">
         <div class="col-12">
