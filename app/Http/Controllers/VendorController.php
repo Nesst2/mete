@@ -15,45 +15,19 @@ class VendorController extends Controller
     // Menampilkan daftar vendor
     public function index(Request $request)
 {
-    $status = $request->get('status');
-    $kota   = $request->get('kota');
-    $search = $request->get('search'); // Parameter search baru
+    $status  = $request->get('status');
+    $search  = $request->get('search');
 
-    if (Auth::user()->role == 'sales') {
-        // Ambil kota dari relasi daerah user sales
-        $salesKota = optional(Auth::user()->daerah)->kota;
+    if (Auth::user()->role == 'admin') {
+        // Ambil parameter filter khusus admin
+        $kota    = $request->get('kota');
+        $wilayah = $request->get('wilayah');
 
-        if ($salesKota) {
-            // Filter vendor berdasarkan kota dari daerah sales melalui wilayah
-            $vendors = Vendor::with(['wilayah'])
-                ->when($status, function ($query) use ($status) {
-                    return $query->where('status', $status);
-                })
-                ->whereHas('wilayah', function ($query) use ($salesKota) {
-                    $query->whereHas('daerah', function ($subQuery) use ($salesKota) {
-                        $subQuery->where('kota', $salesKota);
-                    });
-                })
-                ->when($search, function ($query, $search) {
-                    $query->where(function($q) use ($search) {
-                        $q->where('kode_vendor', 'LIKE', "%{$search}%")
-                          ->orWhere('nama', 'LIKE', "%{$search}%")
-                          ->orWhere('keterangan', 'LIKE', "%{$search}%")
-                          ->orWhere('jam_operasional', 'LIKE', "%{$search}%")
-                          ->orWhere('nomor_hp', 'LIKE', "%{$search}%");
-                    });
-                })
-                ->paginate(10);
-                $vendors->appends($request->query());
-        } else {
-            $vendors = collect(); // Jika tidak ada kota, kembalikan array kosong
-        }
-    } else {
-        // Untuk admin, filter vendor berdasarkan status, kota, dan search
         $vendors = Vendor::with(['wilayah'])
             ->when($status, function ($query) use ($status) {
                 return $query->where('status', $status);
             })
+            // Filter berdasarkan kota, jika diisi
             ->when($kota, function ($query) use ($kota) {
                 return $query->whereHas('wilayah', function ($query) use ($kota) {
                     $query->whereHas('daerah', function ($subQuery) use ($kota) {
@@ -61,8 +35,20 @@ class VendorController extends Controller
                     });
                 });
             })
+            // Filter berdasarkan wilayah hanya jika kota sudah dipilih
+            ->when($wilayah, function ($query) use ($wilayah, $kota) {
+                if ($kota) {
+                    return $query->whereHas('wilayah', function ($query) use ($wilayah, $kota) {
+                        $query->where('nama', $wilayah)
+                              ->whereHas('daerah', function ($subQuery) use ($kota) {
+                                  $subQuery->where('kota', $kota);
+                              });
+                    });
+                }
+                return $query;
+            })
             ->when($search, function ($query, $search) {
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('kode_vendor', 'LIKE', "%{$search}%")
                       ->orWhere('nama', 'LIKE', "%{$search}%")
                       ->orWhere('keterangan', 'LIKE', "%{$search}%")
@@ -72,15 +58,68 @@ class VendorController extends Controller
             })
             ->paginate(10);
         $vendors->appends($request->query());
+
+        // Siapkan data dropdown untuk admin
+        // Dropdown kota: ambil semua kota dari relasi wilayah -> daerah
+        $kotaList = Wilayah::with('daerah')
+            ->get()
+            ->pluck('daerah.kota', 'daerah.kota')
+            ->unique();
+
+        // Dropdown wilayah: jika kota dipilih, tampilkan wilayah sesuai kota tersebut, jika tidak tampilkan semua wilayah
+        if ($kota) {
+            $wilayahList = Wilayah::whereHas('daerah', function ($q) use ($kota) {
+                $q->where('kota', $kota);
+            })->pluck('nama')->unique();
+        } else {
+            $wilayahList = Wilayah::pluck('nama')->unique();
+        }
+    } else {
+        // Untuk sales: data kota didapat dari profil, sehingga hanya filter wilayah (yang otomatis terikat dengan kota sales)
+        $wilayah = $request->get('wilayah');
+        $salesKota = optional(Auth::user()->daerah)->kota;
+
+        if ($salesKota) {
+            $vendors = Vendor::with(['wilayah'])
+                ->whereHas('wilayah', function ($query) use ($salesKota) {
+                    $query->whereHas('daerah', function ($subQuery) use ($salesKota) {
+                        $subQuery->where('kota', $salesKota);
+                    });
+                })
+                ->when($wilayah, function ($query) use ($wilayah, $salesKota) {
+                    return $query->whereHas('wilayah', function ($query) use ($wilayah, $salesKota) {
+                        $query->where('nama', $wilayah)
+                              ->whereHas('daerah', function ($q) use ($salesKota) {
+                                  $q->where('kota', $salesKota);
+                              });
+                    });
+                })
+                ->when($search, function ($query, $search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('kode_vendor', 'LIKE', "%{$search}%")
+                          ->orWhere('nama', 'LIKE', "%{$search}%")
+                          ->orWhere('keterangan', 'LIKE', "%{$search}%")
+                          ->orWhere('jam_operasional', 'LIKE', "%{$search}%")
+                          ->orWhere('nomor_hp', 'LIKE', "%{$search}%");
+                    });
+                })
+                ->paginate(10);
+            $vendors->appends($request->query());
+
+            // Untuk sales, dropdown wilayah hanya berdasarkan kota sales
+            $wilayahList = Wilayah::whereHas('daerah', function ($q) use ($salesKota) {
+                $q->where('kota', $salesKota);
+            })->pluck('nama')->unique();
+            // Tidak ada dropdown kota untuk sales
+            $kotaList = collect();
+        } else {
+            $vendors = collect();
+            $wilayahList = collect();
+            $kotaList = collect();
+        }
     }
 
-    // Ambil daftar kota yang ada di wilayah
-    $kotaList = Wilayah::with('daerah')
-        ->get()
-        ->pluck('daerah.kota', 'daerah.kota')
-        ->unique();
-
-    return view('master_data.vendor.index', compact('vendors', 'kotaList'));
+    return view('master_data.vendor.index', compact('vendors', 'kotaList', 'wilayahList'));
 }
 
     // Menampilkan form untuk membuat vendor baru

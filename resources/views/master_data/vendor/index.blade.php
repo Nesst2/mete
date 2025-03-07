@@ -2,67 +2,96 @@
 
 @section('content')
 @if(session('success'))
-    <div class="alert alert-success">
-        {{ session('success') }}
-    </div>
+    <div class="alert alert-success">{{ session('success') }}</div>
 @endif
 
-{{-- Form filter untuk admin --}}
-@if(Auth::user()->role == 'admin')
-        <!-- Form Search dan Filter Berdasarkan Kota untuk Admin -->
-        <form action="{{ route('vendor.index') }}" method="GET" class="mb-3">
-            <div class="row">
-                <div class="col-md-4">
-                    <label for="search">Cari Vendor:</label>
-                    <input type="text" name="search" id="search" class="form-control" placeholder="Cari vendor" value="{{ request('search') }}">
-                </div>
-                <div class="col-md-4">
-                    <label for="kota">Filter Berdasarkan Kota:</label>
-                    <select name="kota" id="kota" class="form-select">
-                        <option value="">-- Semua Kota --</option>
-                        @foreach($kotaList as $kota)
-                            <option value="{{ $kota }}" {{ request('kota') == $kota ? 'selected' : '' }}>{{ $kota }}</option>
-                        @endforeach
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">Cari</button>
-                </div>
-            </div>
-        </form>
-    @else
-        <!-- Untuk Sales, hanya menampilkan fitur search -->
-        <form action="{{ route('vendor.index') }}" method="GET" class="mb-3">
-            <div class="row">
-                <div class="col-md-8">
-                    <label for="search">Cari Vendor:</label>
-                    <input type="text" name="search" id="search" class="form-control" placeholder="Cari Vendor" value="{{ request('search') }}">
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">Cari</button>
-                </div>
-            </div>
-        </form>
-    @endif
+<div class="container">
+    <!-- Card Filter Vendor -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Filter Vendor</h5>
+        </div>
+        <div class="card-body">
+            @if(Auth::user()->role == 'admin')
+                <!-- Form Filter untuk Admin: Search, Kota & Wilayah -->
+                <form action="{{ route('vendor.index') }}" method="GET" id="adminFilterForm">
+                    <div class="row mb-3">
+                        <!-- Search Input dengan Button (Input Group) -->
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Cari Vendor:</label>
+                            <div class="input-group">
+                                <input type="text" name="search" id="search" class="form-control" placeholder="Cari vendor" value="{{ request('search') }}">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Filter Berdasarkan Kota -->
+                        <div class="col-md-4">
+                            <label for="kota" class="form-label">Filter Berdasarkan Kota:</label>
+                            <select name="kota" id="kota" class="form-select" onchange="this.form.submit()">
+                                <option value="">-- Semua Kota --</option>
+                                @foreach($kotaList as $kota)
+                                    <option value="{{ $kota }}" {{ request('kota') == $kota ? 'selected' : '' }}>{{ $kota }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <!-- Filter Berdasarkan Wilayah -->
+                        <div class="col-md-4">
+                            <label for="wilayah" class="form-label">Filter Berdasarkan Wilayah:</label>
+                            <select name="wilayah" id="wilayah" class="form-select" onchange="this.form.submit()">
+                                <option value="">-- Semua Wilayah --</option>
+                                @foreach($wilayahList as $wil)
+                                    <option value="{{ $wil }}" {{ request('wilayah') == $wil ? 'selected' : '' }}>{{ $wil }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            @else
+                <!-- Form Filter untuk Sales: Search & Filter Wilayah (tanpa filter kota) -->
+                <form action="{{ route('vendor.index') }}" method="GET" id="salesFilterForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="search" class="form-label">Cari Vendor:</label>
+                            <div class="input-group">
+                                <input type="text" name="search" id="search" class="form-control" placeholder="Cari vendor" value="{{ request('search') }}">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="wilayah" class="form-label">Filter Berdasarkan Wilayah:</label>
+                            <select name="wilayah" id="wilayah" class="form-select" onchange="this.form.submit()">
+                                <option value="">-- Semua Wilayah --</option>
+                                @foreach($wilayahList as $wil)
+                                    <option value="{{ $wil }}" {{ request('wilayah') == $wil ? 'selected' : '' }}>{{ $wil }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            @endif
 
-{{-- Form filter untuk sales: hanya menampilkan filter status --}}
-{{-- @if(Auth::user()->role == 'sales') --}}
-<form action="{{ route('vendor.index') }}" method="GET" class="mb-3">
-    <div class="row">
-        <div class="col-md-6 mb-2">
-            <label for="status">Filter Berdasarkan Status Vendor:</label>
-            <select name="status" id="status" class="form-select" onchange="this.form.submit()">
-                <option value="">Semua Status</option>
-                <option value="aktif" {{ request('status') == 'aktif' ? 'selected' : '' }}>Aktif</option>
-                <option value="nonaktif" {{ request('status') == 'nonaktif' ? 'selected' : '' }}>Nonaktif</option>
-                <option value="menunggu_verifikasi" {{ request('status') == 'menunggu_verifikasi' ? 'selected' : '' }}>Menunggu Verifikasi</option>
-            </select>
+            <!-- Form Filter Status (digunakan oleh semua peran) -->
+            <form action="{{ route('vendor.index') }}" method="GET" id="statusFilterForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="status" class="form-label">Filter Berdasarkan Status Vendor:</label>
+                        <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+                            <option value="">Semua Status</option>
+                            <option value="aktif" {{ request('status') == 'aktif' ? 'selected' : '' }}>Aktif</option>
+                            <option value="nonaktif" {{ request('status') == 'nonaktif' ? 'selected' : '' }}>Nonaktif</option>
+                            <option value="menunggu_verifikasi" {{ request('status') == 'menunggu_verifikasi' ? 'selected' : '' }}>Menunggu Verifikasi</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
-</form>
-{{-- @endif --}}
 
-<div class="container">
+    <!-- Daftar Vendor -->
     <h2>Daftar Vendor</h2>
     <a href="{{ route('vendor.create') }}" class="btn btn-primary mb-3">Tambah Vendor</a>
 
@@ -81,7 +110,7 @@
         </thead>
         <tbody id="vendor-table-body">
             @foreach($vendors as $vendor)
-                {{-- Untuk sales: jika filter status sudah diisi dan bukan "nonaktif", lewati vendor nonaktif --}}
+                {{-- Untuk sales: jika filter status sudah diisi dan vendor nonaktif, lewati --}}
                 @if(Auth::user()->role == 'sales' && request()->filled('status') && request('status') != 'nonaktif' && $vendor->status == 'nonaktif')
                     @continue
                 @endif
@@ -91,29 +120,26 @@
                     <td>{{ $vendor->jam_operasional }}</td>
                     <td>{{ $vendor->nomor_hp }}</td>
                     <td>{{ $vendor->status_label }}</td>
-                    <td>{{ $vendor->wilayah ? $vendor->wilayah->kota : 'N/A' }}</td>
+                    <td>{{ $vendor->wilayah ? $vendor->wilayah->daerah->kota : 'N/A' }}</td>
                     <td>{{ $vendor->wilayah ? $vendor->wilayah->nama : 'N/A' }}</td>
                     <td>
                         <a href="{{ route('vendor.show', $vendor->id) }}" class="btn btn-info btn-sm">Lihat Detail</a>
                         <a href="{{ route('vendor.edit', $vendor->id) }}" class="btn btn-warning btn-sm">Edit</a>
                         @if(Auth::user()->role == 'admin' && $vendor->status == 'aktif')
-                        <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#nonaktifVendorModal" onclick="setVendorId({{ $vendor->id }})">
-                            Nonaktifkan Vendor
-                        </button>
+                            <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#nonaktifVendorModal" onclick="setVendorId({{ $vendor->id }})">
+                                Nonaktifkan Vendor
+                            </button>
                         @endif
                     </td>
                 </tr>
             @endforeach
         </tbody>
     </table>
-    
-    {{-- Tampilkan pagination --}}
-    <div class="d-flex justify-content-center">
-            {{ $vendors->links() }}
-    </div>
+
+    <div class="d-flex justify-content-center">{{ $vendors->links() }}</div>
 </div>
 
-{{-- Modal untuk input alasan nonaktif --}}
+<!-- Modal Nonaktif Vendor -->
 <div class="modal fade" id="nonaktifVendorModal" tabindex="-1" aria-labelledby="nonaktifVendorModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -136,14 +162,14 @@
     </div>
 </div>
 
-{{-- JavaScript untuk modal nonaktif vendor --}}
+<!-- JavaScript untuk Modal Nonaktif Vendor -->
 <script>
     function setVendorId(id) {
         document.getElementById("vendor_id").value = id;
         document.getElementById("reason").value = "";
     }
 
-    document.getElementById("nonaktifVendorForm").addEventListener("submit", function(e){
+    document.getElementById("nonaktifVendorForm").addEventListener("submit", function(e) {
         e.preventDefault();
         let vendorId = document.getElementById("vendor_id").value;
         let reason = document.getElementById("reason").value;
@@ -189,7 +215,7 @@
     });
 </script>
 
-{{-- JavaScript untuk live search (hanya aktif untuk admin) --}}
+<!-- JavaScript untuk Live Search (khusus Admin) -->
 @if(Auth::user()->role == 'admin')
 <script>
     let searchInput = document.getElementById('search');
@@ -210,7 +236,7 @@
                             <td>${vendor.jam_operasional}</td>
                             <td>${vendor.nomor_hp}</td>
                             <td>${vendor.status}</td>
-                            <td>${vendor.wilayah ? vendor.wilayah.kota : 'N/A'}</td>
+                            <td>${vendor.wilayah ? vendor.wilayah.daerah.kota : 'N/A'}</td>
                             <td>${vendor.wilayah ? vendor.wilayah.nama : 'N/A'}</td>
                             <td>
                                 <a href="/vendor/${vendor.id}" class="btn btn-info btn-sm">Lihat Detail</a>
@@ -223,7 +249,7 @@
                 .catch(error => {
                     console.error('Error:', error);
                 });
-        }, 300); // Delay 300ms
+        }, 300);
     });
 </script>
 @endif
