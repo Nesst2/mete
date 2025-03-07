@@ -6,17 +6,23 @@
 
     <!-- Grafik Kunjungan Vendor di Kota Anda (Stacked Bar) -->
     <div class="row mb-4">
-        <div class="col-md-12">
+        <div class="col-12">
             <h4>Grafik Kunjungan Vendor di Kota Anda - Bulan {{ $bulan }}</h4>
-            <canvas id="visitsChart" width="400" height="200"></canvas>
+            <!-- Container canvas dengan tinggi khusus -->
+            <div style="height: 500px;">
+                <canvas id="visitsChart" style="width:100%; height:100%;"></canvas>
+            </div>
         </div>
     </div>
 
     <!-- Grafik Pemasukan per Hari pada Bulan Ini (Line Chart) -->
     <div class="row">
-        <div class="col-md-12">
+        <div class="col-12">
             <h4>Grafik Pemasukan per Hari - Bulan {{ $bulan }}</h4>
-            <canvas id="incomeChart" width="400" height="200"></canvas>
+            <!-- Container canvas dengan tinggi khusus -->
+            <div style="height: 500px;">
+                <canvas id="incomeChart" style="width:100%; height:100%;"></canvas>
+            </div>
         </div>
     </div>
 </div>
@@ -52,6 +58,8 @@
                 ]
             },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title: {
                         display: true,
@@ -84,7 +92,7 @@
                 }
             }
         });
-    
+
         // Grafik Pemasukan per Hari pada Bulan Ini (Line Chart)
         const ctx2 = document.getElementById('incomeChart').getContext('2d');
         const incomeChart = new Chart(ctx2, {
@@ -102,6 +110,8 @@
                 }]
             },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title: {
                         display: true,

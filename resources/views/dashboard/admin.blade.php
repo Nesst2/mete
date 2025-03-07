@@ -6,15 +6,18 @@
 
     <!-- Grafik Kunjungan Vendor per Kota -->
     <div class="row mb-4">
-        <div class="col-md-12">
+        <div class="col-12">
             <h4>Grafik Kunjungan Vendor per Kota - Bulan {{ $bulan }}</h4>
-            <canvas id="visitsChart" width="400" height="200"></canvas>
+            <!-- Container canvas dengan tinggi khusus -->
+            <div style="height: 500px;">
+                <canvas id="visitsChart" style="width:100%; height:100%;"></canvas>
+            </div>
         </div>
     </div>
 
     <!-- Filter untuk Grafik Pemasukan per Hari Berdasarkan Kota -->
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-4 col-12">
             <form action="{{ route('admin.dashboard') }}" method="GET">
                 <div class="mb-3">
                     <label for="income_kota" class="form-label">Filter Pemasukan Berdasarkan Kota:</label>
@@ -31,9 +34,12 @@
 
     <!-- Grafik Pemasukan per Hari pada Bulan Ini -->
     <div class="row">
-        <div class="col-md-12">
+        <div class="col-12">
             <h4>Grafik Pemasukan per Hari - Bulan {{ $bulan }}</h4>
-            <canvas id="incomeChart" width="400" height="200"></canvas>
+            <!-- Container canvas dengan tinggi khusus -->
+            <div style="height: 500px;">
+                <canvas id="incomeChart" style="width:100%; height:100%;"></canvas>
+            </div>
         </div>
     </div>
 </div>
@@ -69,6 +75,8 @@
                 ]
             },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title: {
                         display: true,
@@ -112,6 +120,8 @@
                 }]
             },
             options: {
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     title: {
                         display: true,
