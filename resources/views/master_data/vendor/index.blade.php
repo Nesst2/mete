@@ -13,11 +13,11 @@
         </div>
         <div class="card-body">
             @if(Auth::user()->role == 'admin')
-                <!-- Form Filter untuk Admin: Search, Kota & Wilayah -->
+                <!-- Form Filter untuk Admin: Search, Kota, Wilayah & Status -->
                 <form action="{{ route('vendor.index') }}" method="GET" id="adminFilterForm">
                     <div class="row mb-3">
                         <!-- Search Input dengan Button (Input Group) -->
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="search" class="form-label">Cari Vendor:</label>
                             <div class="input-group">
                                 <input type="text" name="search" id="search" class="form-control" placeholder="Cari vendor" value="{{ request('search') }}">
@@ -27,7 +27,7 @@
                             </div>
                         </div>
                         <!-- Filter Berdasarkan Kota -->
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label for="kota" class="form-label">Filter Berdasarkan Kota:</label>
                             <select name="kota" id="kota" class="form-select" onchange="this.form.submit()">
                                 <option value="">-- Semua Kota --</option>
@@ -37,6 +37,47 @@
                             </select>
                         </div>
                         <!-- Filter Berdasarkan Wilayah -->
+                        <div class="col-md-3">
+                            <label for="wilayah" class="form-label">Filter Berdasarkan Wilayah:</label>
+                            <select name="wilayah" id="wilayah" class="form-select" onchange="this.form.submit()">
+                                <option value="">-- Semua Wilayah --</option>
+                                @foreach($wilayahList as $wil)
+                                    <option value="{{ $wil }}" {{ request('wilayah') == $wil ? 'selected' : '' }}>{{ $wil }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <!-- Filter Berdasarkan Status Vendor -->
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Filter Berdasarkan Status Vendor:</label>
+                            <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+                                <option value="">Semua Status</option>
+                                <option value="aktif" {{ request('status') == 'aktif' ? 'selected' : '' }}>Aktif</option>
+                                <option value="nonaktif" {{ request('status') == 'nonaktif' ? 'selected' : '' }}>Nonaktif</option>
+                                <option value="menunggu_verifikasi" {{ request('status') == 'menunggu_verifikasi' ? 'selected' : '' }}>Menunggu Verifikasi</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Baris Tombol Filter & Clear Filter -->
+                    <div class="row">
+                        <div class="col-md-3 mb-2 align-self-end">
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                            <a href="{{ route('vendor.index') }}" class="btn btn-secondary">Clear Filter</a>
+                        </div>
+                    </div>
+                </form>
+            @else
+                <!-- Form Filter untuk Sales: Search, Wilayah & Status (tanpa filter kota) -->
+                <form action="{{ route('vendor.index') }}" method="GET" id="salesFilterForm">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Cari Vendor:</label>
+                            <div class="input-group">
+                                <input type="text" name="search" id="search" class="form-control" placeholder="Cari vendor" value="{{ request('search') }}">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
                         <div class="col-md-4">
                             <label for="wilayah" class="form-label">Filter Berdasarkan Wilayah:</label>
                             <select name="wilayah" id="wilayah" class="form-select" onchange="this.form.submit()">
@@ -46,48 +87,26 @@
                                 @endforeach
                             </select>
                         </div>
-                    </div>
-                </form>
-            @else
-                <!-- Form Filter untuk Sales: Search & Filter Wilayah (tanpa filter kota) -->
-                <form action="{{ route('vendor.index') }}" method="GET" id="salesFilterForm">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="search" class="form-label">Cari Vendor:</label>
-                            <div class="input-group">
-                                <input type="text" name="search" id="search" class="form-control" placeholder="Cari vendor" value="{{ request('search') }}">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fa fa-search"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="wilayah" class="form-label">Filter Berdasarkan Wilayah:</label>
-                            <select name="wilayah" id="wilayah" class="form-select" onchange="this.form.submit()">
-                                <option value="">-- Semua Wilayah --</option>
-                                @foreach($wilayahList as $wil)
-                                    <option value="{{ $wil }}" {{ request('wilayah') == $wil ? 'selected' : '' }}>{{ $wil }}</option>
-                                @endforeach
+                        <!-- Filter Berdasarkan Status Vendor -->
+                        <div class="col-md-4">
+                            <label for="status" class="form-label">Filter Berdasarkan Status Vendor:</label>
+                            <select name="status" id="status" class="form-select" onchange="this.form.submit()">
+                                <option value="">Semua Status</option>
+                                <option value="aktif" {{ request('status') == 'aktif' ? 'selected' : '' }}>Aktif</option>
+                                <option value="nonaktif" {{ request('status') == 'nonaktif' ? 'selected' : '' }}>Nonaktif</option>
+                                <option value="menunggu_verifikasi" {{ request('status') == 'menunggu_verifikasi' ? 'selected' : '' }}>Menunggu Verifikasi</option>
                             </select>
+                        </div>
+                    </div>
+                    <!-- Baris Tombol Filter & Clear Filter -->
+                    <div class="row">
+                        <div class="col-md-3 mb-2 align-self-end">
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                            <a href="{{ route('vendor.index') }}" class="btn btn-secondary">Clear Filter</a>
                         </div>
                     </div>
                 </form>
             @endif
-
-            <!-- Form Filter Status (digunakan oleh semua peran) -->
-            <form action="{{ route('vendor.index') }}" method="GET" id="statusFilterForm">
-                <div class="row">
-                    <div class="col-md-6">
-                        <label for="status" class="form-label">Filter Berdasarkan Status Vendor:</label>
-                        <select name="status" id="status" class="form-select" onchange="this.form.submit()">
-                            <option value="">Semua Status</option>
-                            <option value="aktif" {{ request('status') == 'aktif' ? 'selected' : '' }}>Aktif</option>
-                            <option value="nonaktif" {{ request('status') == 'nonaktif' ? 'selected' : '' }}>Nonaktif</option>
-                            <option value="menunggu_verifikasi" {{ request('status') == 'menunggu_verifikasi' ? 'selected' : '' }}>Menunggu Verifikasi</option>
-                        </select>
-                    </div>
-                </div>
-            </form>
         </div>
     </div>
 
