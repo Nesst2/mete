@@ -136,6 +136,9 @@ Route::post('/vendor/{id}/activate', [VendorController::class, 'activate'])
     ->middleware('auth')
     ->name('vendor.activate');
 
+Route::delete('/vendor/{id}/delete-nonactive', [VendorController::class, 'destroyNonActive'])
+    ->name('vendor.destroyNonActive');
+
 Route::get('/test-dd', function () {
     dd('Test dd berhasil');
 });

@@ -138,7 +138,7 @@ class VendorController extends Controller
     {
         $request->validate([
             'nama'             => 'required|string|max:255',
-            'keterangan'       => 'nullable|string',
+            'keterangan'       => 'required|nullable|string',
             'jam_operasional'  => 'required|string|max:50',
             'nomor_hp'         => 'required|string|max:20|unique:vendors,nomor_hp',
             'location_link'    => 'nullable|url',
@@ -203,56 +203,58 @@ class VendorController extends Controller
 
     // Mengupdate data vendor
 
-public function update(Request $request, $id)
-{
-    $request->validate([
-        'nama'            => 'required|string|max:255',
-        'jam_operasional' => 'required|string|max:50',
-        'nomor_hp'        => 'required|string|max:20|unique:vendors,nomor_hp,' . $id,
-        'kota'            => 'required|string|max:255',
-        'gambar_vendor'   => 'nullable|image', // Validasi gambar
-    ]);
-
-    $vendor = Vendor::findOrFail($id);
-    $oldVendor = $vendor->toArray(); // Data lama untuk log
-
-    // Jika ada gambar baru yang diunggah
-    if ($request->hasFile('gambar_vendor')) {
-        // Hapus gambar lama jika ada
-        if ($vendor->gambar_vendor) {
-            Storage::disk('public')->delete($vendor->gambar_vendor);
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'nama'            => 'required|string|max:255',
+            'keterangan'      => 'required|string',
+            'jam_operasional' => 'required|string|max:50',
+            'nomor_hp'        => 'required|string|max:20|unique:vendors,nomor_hp,'.$id,
+            'location_link'   => 'nullable|string',
+            'daerah_id'       => 'required|exists:daerah,id', // periksa nama tabel (misalnya 'daerah' bukan 'daerahs')
+            'kota'            => 'required|string|max:255',
+            'wilayah_id'      => 'required|exists:wilayah,id',
+            'gambar_vendor'   => 'nullable|image'
+        ]);        
+    
+        $vendor = Vendor::findOrFail($id);
+        $oldVendor = $vendor->toArray();
+    
+        // Jika ada gambar baru yang diunggah
+        if ($request->hasFile('gambar_vendor')) {
+            if ($vendor->gambar_vendor) {
+                Storage::disk('public')->delete($vendor->gambar_vendor);
+            }
+            $newImagePath = $request->file('gambar_vendor')->store('vendors', 'public');
         }
-
-        // Simpan gambar baru
-        $newImagePath = $request->file('gambar_vendor')->store('vendors', 'public');
-        $vendor->gambar_vendor = $newImagePath;
+    
+        // Update semua field vendor
+        $vendor->update([
+            'nama'            => $request->nama,
+            'keterangan'      => $request->keterangan,
+            'jam_operasional' => $request->jam_operasional,
+            'nomor_hp'        => $request->nomor_hp,
+            'location_link'   => $request->location_link,
+            'daerah_id'       => $request->daerah_id,  // pastikan field ini juga diupdate
+            'kota'            => $request->kota,
+            'wilayah_id'      => $request->wilayah_id, // ambil dari input form
+            'status'          => $request->status ?? $vendor->status,
+            'gambar_vendor'   => $request->hasFile('gambar_vendor') ? $newImagePath : $vendor->gambar_vendor,
+        ]);        
+    
+        // Log aktivitas: Update vendor
+        ActivityLog::log(
+            'update',
+            'vendors',
+            $vendor->id,
+            $oldVendor,
+            $vendor->toArray(),
+            'Vendor berhasil diperbarui'
+        );
+    
+        return redirect()->route('vendor.index')->with('success', 'Vendor berhasil diperbarui!');
     }
-
-    // Update data lainnya
-    $vendor->update([
-        'nama'            => $request->nama,
-        'keterangan'      => $request->keterangan,
-        'jam_operasional' => $request->jam_operasional,
-        'nomor_hp'        => $request->nomor_hp,
-        'location_link'   => $request->location_link,
-        'kota'            => $request->kota,
-        'wilayah_id'      => $vendor->wilayah_id,
-        'status'          => $request->status ?? $vendor->status,
-    ]);
-
-    // Log aktivitas: Update vendor
-    ActivityLog::log(
-        'update',
-        'vendors',
-        $vendor->id,
-        $oldVendor,
-        $vendor->toArray(),
-        'Vendor berhasil diperbarui'
-    );
-
-    return redirect()->route('vendor.index')->with('success', 'Vendor berhasil diperbarui!');
-}
-
+    
 
     // Menghapus vendor
     public function destroy(Vendor $vendor)
@@ -307,33 +309,52 @@ public function update(Request $request, $id)
 
     // Menonaktifkan vendor
     public function deactivate(Request $request, $id)
-    {
-        $request->validate([
-            'reason' => 'required|string|max:255',
-        ]);
+{
+    $request->validate([
+        'reason' => 'required|string|max:255',
+    ]);
 
-        $vendor = Vendor::findOrFail($id);
+    $vendor = Vendor::findOrFail($id);
 
-        if ($vendor->status == 'nonaktif') {
-            return response()->json(['message' => 'Vendor sudah nonaktif'], 400);
-        }
-
-        $oldVendor = $vendor->toArray(); // Simpan data lama untuk log
-
-        $vendor->update(['status' => 'nonaktif']);
-
-        // Log aktivitas: Update status vendor menjadi nonaktif
-        ActivityLog::log(
-            'update',
-            'vendors',
-            $vendor->id,
-            $oldVendor,
-            $vendor->toArray(),
-            'Vendor berhasil dinonaktifkan'
-        );
-
-        return response()->json(['message' => 'Vendor berhasil dinonaktifkan'], 200);
+    // Jika vendor sudah nonaktif, kamu bisa mengijinkan update alasan (atau tidak, tergantung logika bisnis)
+    if ($vendor->status == 'nonaktif') {
+        return response()->json(['message' => 'Vendor sudah nonaktif'], 400);
     }
+
+    $oldVendor = $vendor->toArray();
+
+    // Update status vendor
+    $vendor->update(['status' => 'nonaktif']);
+
+    // Cek apakah sudah ada record deactivation
+    $deactivationRequest = $vendor->deactivationRequests()->latest('approved_at')->first();
+
+    if ($deactivationRequest) {
+        // Perbarui record yang ada agar timestamp juga ikut terupdate
+        $deactivationRequest->update([
+            'reason' => $request->reason,
+            'approved_at' => now(),
+        ]);
+    } else {
+        // Jika belum ada, buat record baru
+        $vendor->deactivationRequests()->create([
+            'reason' => $request->reason,
+            'approved_at' => now(),
+        ]);
+    }
+
+    // Log aktivitas
+    ActivityLog::log(
+        'update',
+        'vendors',
+        $vendor->id,
+        $oldVendor,
+        $vendor->toArray(),
+        'Vendor berhasil dinonaktifkan'
+    );
+
+    return response()->json(['message' => 'Vendor berhasil dinonaktifkan'], 200);
+}
 
     public function activate(Request $request, $id)
 {
@@ -387,4 +408,27 @@ public function update(Request $request, $id)
 
         return response()->json(['vendors' => $vendors]);
     }
+
+    public function destroyNonActive(Request $request, $id)
+{
+    // Cari vendor berdasarkan ID
+    $vendor = Vendor::findOrFail($id);
+
+    // Cek status vendor, jika tidak nonaktif, tolak penghapusan
+    if ($vendor->status !== 'nonaktif') {
+        return response()->json([
+            'message' => 'Vendor dengan status aktif tidak dapat dihapus.'
+        ], 400);
+    }
+
+    // Hapus vendor
+    $vendor->delete();
+
+    return response()->json([
+        'message' => 'Vendor nonaktif berhasil dihapus.'
+    ]);
 }
+
+}
+
+

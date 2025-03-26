@@ -25,7 +25,7 @@
         </div>
         <div class="form-group">
             <label for="keterangan">Keterangan</label>
-            <input type="text" class="form-control" name="keterangan" value="{{ old('keterangan', $vendor->keterangan) }}">
+            <input type="text" class="form-control" name="keterangan" value="{{ old('keterangan', $vendor->keterangan) }}" required>
         </div>
         <div class="form-group">
             <label for="jam_operasional">Jam Operasional</label>
@@ -65,7 +65,7 @@
                 <input type="hidden" name="kota" id="kota" value="{{ old('kota', $vendor->kota) }}">
             </div>
         @else
-            <!-- Untuk Sales: Kota diambil dari data user -->
+            <!-- Untuk Sales: Nilai daerah diambil dari data user -->
             <input type="hidden" name="daerah_id" value="{{ Auth::user()->daerah->id }}">
             <input type="hidden" name="kota" value="{{ Auth::user()->daerah->kota }}">
             <div class="form-group">

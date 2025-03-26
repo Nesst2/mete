@@ -129,11 +129,7 @@
         </thead>
         <tbody id="vendor-table-body">
             @foreach($vendors as $vendor)
-                {{-- Untuk sales: jika filter status sudah diisi dan vendor nonaktif, lewati --}}
-                @if(Auth::user()->role == 'sales' && request()->filled('status') && request('status') != 'nonaktif' && $vendor->status == 'nonaktif')
-                    @continue
-                @endif
-                <tr>
+                <tr class="{{ $vendor->status == 'nonaktif' ? 'table-danger' : '' }}">
                     <td>{{ $vendor->kode_vendor }}</td>
                     <td>{{ $vendor->nama }}</td>
                     <td>{{ $vendor->jam_operasional }}</td>
@@ -143,16 +139,22 @@
                     <td>{{ $vendor->wilayah ? $vendor->wilayah->nama : 'N/A' }}</td>
                     <td>
                         <a href="{{ route('vendor.show', $vendor->id) }}" class="btn btn-info btn-sm">Lihat Detail</a>
-                        <a href="{{ route('vendor.edit', $vendor->id) }}" class="btn btn-warning btn-sm">Edit</a>
-                        @if(Auth::user()->role == 'admin' && $vendor->status == 'aktif')
-                            <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#nonaktifVendorModal" onclick="setVendorId({{ $vendor->id }})">
-                                Nonaktifkan Vendor
-                            </button>
+                        <a href="{{ route('vendor.edit', $vendor->id) }}" class="btn btn-secondary btn-sm">Edit</a>
+                        @if(Auth::user()->role == 'admin')
+                            @if($vendor->status == 'aktif')
+                                <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#nonaktifVendorModal" onclick="setVendorId({{ $vendor->id }})">
+                                    Nonaktifkan Vendor
+                                </button>
+                            @elseif($vendor->status == 'nonaktif')
+                                <button type="button" class="btn btn-danger btn-sm" onclick="deleteNonActiveVendor({{ $vendor->id }})">
+                                    Hapus Vendor
+                                </button>
+                            @endif
                         @endif
-                    </td>
+                    </td>                                      
                 </tr>
             @endforeach
-        </tbody>
+        </tbody>        
     </table>
 
     <div class="d-flex justify-content-center">{{ $vendors->links() }}</div>
@@ -173,7 +175,8 @@
                     <div class="mb-3">
                         <label for="reason" class="form-label">Alasan Penonaktifan</label>
                         <textarea class="form-control" id="reason" rows="3" required></textarea>
-                    </div>
+                        <div id="reasonError" class="text-danger mt-1" style="display: none;">Alasan penonaktifan harus diisi!</div>
+                    </div>                    
                     <button type="submit" class="btn btn-danger">Nonaktifkan Vendor</button>
                 </form>
             </div>
@@ -188,18 +191,28 @@
         document.getElementById("reason").value = "";
     }
 
-    document.getElementById("nonaktifVendorForm").addEventListener("submit", function(e) {
+        document.getElementById("nonaktifVendorForm").addEventListener("submit", function(e) {
         e.preventDefault();
-        let vendorId = document.getElementById("vendor_id").value;
-        let reason = document.getElementById("reason").value;
+        
+        let reasonInput = document.getElementById("reason");
+        let reasonError = document.getElementById("reasonError");
+        let reason = reasonInput.value.trim();
+
         if (!reason) {
-            alert("Alasan penonaktifan harus diisi!");
+            reasonError.style.display = "block"
+            reasonInput.classList.add("is-invalid");
             return;
+        } else {
+            reasonError.style.display = "none";
+            reasonInput.classList.remove("is-invalid");
         }
-        var userRole = "{{ Auth::user()->role }}";
+
+        let vendorId = document.getElementById("vendor_id").value;
+        let userRole = "{{ Auth::user()->role }}";
         let endpoint = (userRole === 'admin')
             ? `/vendor/${vendorId}/deactivate`
             : `/vendor/${vendorId}/request-deactivation`;
+
         fetch(endpoint, {
             method: "POST",
             headers: {
@@ -208,15 +221,7 @@
             },
             body: JSON.stringify({ reason: reason })
         })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => {
-                    console.error("Error response:", err);
-                    throw new Error(err.message || "Network response was not ok");
-                });
-            }
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
             alert(data.message);
             if (data.message.toLowerCase().includes("berhasil")) {
@@ -232,6 +237,34 @@
             alert("Terjadi kesalahan saat mengirim permintaan!");
         });
     });
+
+</script>
+
+<script>
+    function deleteNonActiveVendor(id) {
+        if (!confirm("Apakah Anda yakin ingin menghapus vendor nonaktif ini?")) {
+            return;
+        }
+
+        fetch(`/vendor/${id}/delete-nonactive`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message);
+            if (data.message.toLowerCase().includes("berhasil")) {
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert("Terjadi kesalahan saat menghapus vendor!");
+        });
+    }
 </script>
 
 <!-- JavaScript untuk Live Search (khusus Admin) -->

@@ -56,33 +56,35 @@
         </thead>
         <tbody>
             @foreach ($requests as $request)
-            <tr>
-                <td>{{ $loop->iteration }}</td>
-                <td>{{ $request->vendor ? $request->vendor->nama : 'N/A' }}</td>
-                <td>{{ $request->sales ? $request->sales->nama : 'N/A' }}</td>
-                <td>{{ $request->reason }}</td>
-                <td>{{ ($request->vendor && $request->vendor->wilayah) ? $request->vendor->wilayah->kota : 'N/A' }}</td>
-                <td>
-                    <span class="badge bg-{{ $request->status == 'pending' ? 'warning' : ($request->status == 'approved' ? 'success' : 'danger') }}">
-                        {{ ucfirst($request->status) }}
-                    </span>
-                </td>
-                @if(Auth::user()->role == 'admin')
-                    <td>
-                        @if($request->status == 'pending')
-                            <button onclick="approveRequest({{ $request->id }})" class="btn btn-success">Setujui</button>
-                            <button onclick="rejectRequest({{ $request->id }})" class="btn btn-danger">Tolak</button>
-                        @else
-                            <button class="btn btn-secondary" disabled>Selesai</button>
+                {{-- Hanya tampilkan request yang memiliki data sales dengan role 'sales' --}}
+                @if($request->sales && $request->sales->role == 'sales')
+                    <tr>
+                        <td>{{ $loop->iteration }}</td>
+                        <td>{{ $request->vendor ? $request->vendor->nama : 'N/A' }}</td>
+                        <td>{{ $request->sales->nama }}</td>
+                        <td>{{ $request->reason }}</td>
+                        <td>{{ ($request->vendor && $request->vendor->wilayah) ? $request->vendor->wilayah->kota : 'N/A' }}</td>
+                        <td>
+                            <span class="badge bg-{{ $request->status == 'pending' ? 'warning' : ($request->status == 'approved' ? 'success' : 'danger') }}">
+                                {{ ucfirst($request->status) }}
+                            </span>
+                        </td>
+                        @if(Auth::user()->role == 'admin')
+                            <td>
+                                @if($request->status == 'pending')
+                                    <button onclick="approveRequest({{ $request->id }})" class="btn btn-success">Setujui</button>
+                                    <button onclick="rejectRequest({{ $request->id }})" class="btn btn-danger">Tolak</button>
+                                @else
+                                    <button class="btn btn-secondary" disabled>Selesai</button>
+                                @endif
+                            </td>
                         @endif
-                    </td>
+                    </tr>
                 @endif
-            </tr>
             @endforeach
         </tbody>
     </table>
 </div>
-
 
 <script>
     function approveRequest(id) {

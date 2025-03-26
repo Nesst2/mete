@@ -18,94 +18,96 @@ class TagihanController extends Controller
 {
 
     public function index(Request $request)
-{
-    $currentDate = Carbon::now();
-    $defaultMin = $currentDate->copy()->startOfMonth()->format('Y-m-d');
-    $defaultMax = $currentDate->copy()->endOfMonth()->format('Y-m-d');
-
-    $query = Vendor::query();
-
-    // Pencarian Vendor (Berlaku untuk Admin dan Sales)
-    if ($request->filled('search')) {
-        $search = $request->input('search');
-        $query->where('nama', 'LIKE', '%' . $search . '%');
-    }
-
-    // Filter berdasarkan peran
-    if (Auth::user()->role == 'admin') {
-        if ($request->filled('kota')) {
-            $kota = $request->input('kota');
-            $query->whereHas('wilayah.daerah', function ($q) use ($kota) {
-                $q->where('kota', $kota);
-            });
+    {
+        $currentDate = Carbon::now();
+        // Rentang tanggal untuk bulan berjalan
+        $defaultMin = $currentDate->copy()->startOfMonth()->format('Y-m-d');
+        $defaultMax = $currentDate->copy()->endOfMonth()->format('Y-m-d');
+    
+        $query = Vendor::query();
+    
+        // Pencarian Vendor (Admin & Sales)
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where('nama', 'LIKE', '%' . $search . '%');
         }
-
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-            $query->where('status', $status);
+    
+        // Filter berdasarkan peran
+        if (Auth::user()->role == 'admin') {
+            if ($request->filled('kota')) {
+                $kota = $request->input('kota');
+                $query->whereHas('wilayah.daerah', function ($q) use ($kota) {
+                    $q->where('kota', $kota);
+                });
+            }
+            if ($request->filled('status')) {
+                $status = $request->input('status');
+                $query->where('status', $status);
+            }
+        } elseif (Auth::user()->role == 'sales') {
+            $salesKota = optional(Auth::user()->daerah)->kota;
+            if ($salesKota) {
+                $query->where('status', '!=', 'nonaktif')
+                      ->whereHas('wilayah.daerah', function ($q) use ($salesKota) {
+                          $q->where('kota', $salesKota);
+                      });
+            } else {
+                $query->whereRaw('1=0'); // Jika sales tidak memiliki kota, tampilkan data kosong
+            }
         }
-    } else if (Auth::user()->role == 'sales') {
-        $salesKota = optional(Auth::user()->daerah)->kota;
-
-        if ($salesKota) {
-            $query->where('status', '!=', 'nonaktif')
-                  ->whereHas('wilayah.daerah', function ($q) use ($salesKota) {
-                      $q->where('kota', $salesKota);
-                  });
+    
+        // Filter checklist vendor:
+        // "belum" = vendor yang tidak memiliki tagihan dalam bulan berjalan
+        // "sudah" = vendor yang memiliki setidaknya 1 tagihan dalam bulan berjalan
+        if ($request->filled('checklist')) {
+            if ($request->checklist === 'belum') {
+                $query->whereDoesntHave('tagihan', function ($q) use ($defaultMin, $defaultMax) {
+                    $q->whereBetween('tanggal_masuk', [$defaultMin, $defaultMax]);
+                });
+            } elseif ($request->checklist === 'sudah') {
+                $query->whereHas('tagihan', function ($q) use ($defaultMin, $defaultMax) {
+                    $q->whereBetween('tanggal_masuk', [$defaultMin, $defaultMax]);
+                });
+            }
+        }
+    
+        // Filter berdasarkan tanggal harian menggunakan 'tanggal_filter'
+        // Hanya diterapkan jika input tanggal ada dan checklist bukan "belum"
+        if ($request->filled('tanggal_filter') && $request->checklist !== 'belum') {
+            $selectedDate = $request->input('tanggal_filter');
+            // Pastikan selectedDate berada dalam bulan berjalan
+            if ($selectedDate >= $defaultMin && $selectedDate <= $defaultMax) {
+                $query->whereHas('tagihan', function ($q) use ($selectedDate) {
+                    $q->whereDate('tanggal_masuk', $selectedDate);
+                });
+                $query->with(['tagihan' => function ($q) use ($selectedDate) {
+                    $q->whereDate('tanggal_masuk', $selectedDate);
+                }]);
+            } else {
+                // Fallback: jika tanggal di luar rentang, load semua tagihan dalam bulan berjalan
+                $query->with(['tagihan' => function ($q) use ($defaultMin, $defaultMax) {
+                    $q->whereBetween('tanggal_masuk', [$defaultMin, $defaultMax]);
+                }]);
+            }
         } else {
-            $query->whereRaw('1=0'); // Jika sales tidak memiliki kota, tampilkan data kosong
-        }
-    }
-
-    // Filter berdasarkan tanggal
-    if ($request->filled('start_date') && $request->filled('end_date')) {
-        $startDate = $request->input('start_date');
-        $endDate   = $request->input('end_date');
-
-        // Pastikan kedua tanggal berada dalam bulan yang sama; jika tidak, gunakan default
-        if (Carbon::parse($startDate)->format('Y-m') !== Carbon::parse($endDate)->format('Y-m')) {
-            $startDate = $defaultMin;
-            $endDate   = $defaultMax;
-        }
-
-        if ($startDate === $endDate) {
-            // Jika tanggal awal dan akhir sama, cari data pada tanggal tersebut
-            $query->whereHas('tagihan', function ($q) use ($startDate) {
-                $q->whereDate('tanggal_masuk', $startDate);
-            });
-
-            // Eager load tagihan dengan filter tanggal
-            $query->with(['tagihan' => function ($q) use ($startDate) {
-                $q->whereDate('tanggal_masuk', $startDate);
-            }]);
-        } else {
-            // Jika tanggal berbeda, cari data di antara tanggal tersebut
-            $query->whereHas('tagihan', function ($q) use ($startDate, $endDate) {
-                $q->whereBetween('tanggal_masuk', [$startDate, $endDate]);
-            });
-
-            // Eager load tagihan dengan filter tanggal
-            $query->with(['tagihan' => function ($q) use ($startDate, $endDate) {
-                $q->whereBetween('tanggal_masuk', [$startDate, $endDate]);
+            // Jika filter tanggal tidak diisi, eager load tagihan dalam bulan berjalan
+            $query->with(['tagihan' => function ($q) use ($defaultMin, $defaultMax) {
+                $q->whereBetween('tanggal_masuk', [$defaultMin, $defaultMax]);
             }]);
         }
-    } else {
-        // Jika filter tanggal tidak diisi, tampilkan semua vendor dan eager load semua tagihan (jika diperlukan)
-        $query->with('tagihan');
-    }
-
-    $vendors = $query->paginate(10)->appends($request->query());
-
-    // Ambil daftar kota untuk filter (hanya untuk Admin)
-    $kotaList = [];
-    if (Auth::user()->role == 'admin') {
-        $kotaList = Wilayah::with('daerah')->get()
-                    ->pluck('daerah.kota')
-                    ->unique();
-    }
-
-    return view('tagihan.index', compact('vendors', 'kotaList'));
-}
+    
+        $vendors = $query->paginate(10)->appends($request->query());
+    
+        // Ambil daftar kota untuk filter (hanya untuk Admin)
+        $kotaList = [];
+        if (Auth::user()->role == 'admin') {
+            $kotaList = Wilayah::with('daerah')->get()
+                        ->pluck('daerah.kota')
+                        ->unique();
+        }
+    
+        return view('tagihan.index', compact('vendors', 'kotaList'));
+    }    
 
 public function create($vendor_id)
 {
@@ -149,94 +151,96 @@ public function create($vendor_id)
     return view('tagihan.create', compact('vendor', 'tagihanSebelumnya', 'formStatus', 'returData'));
 }
 
+public function store(Request $request)
+{
+    $vendorId = $request->input('vendor_id');
+    $vendor = Vendor::findOrFail($vendorId);
 
+    // Konstanta nilai maksimal dan nilai retur per unit
+    $maxNominal = 40000;
+    $returValue = 2000;
 
-    public function store(Request $request)
-    {
-        $vendorId = $request->input('vendor_id');
-        $vendor = Vendor::findOrFail($vendorId);
+    for ($i = 1; $i <= 15; $i++) {
+        $statusKunjungan = $request->input("status_kunjungan{$i}");
+        $nominalInput = $request->input("nominal{$i}", 0);
 
-        // Konstanta nilai maksimal dan nilai retur per unit
-        $maxNominal = 40000;
-        $returValue = 2000;
+        // Hapus pemisah ribuan berupa titik (misalnya, "20.000" menjadi "20000")
+        $nominalInput = str_replace('.', '', $nominalInput);
+        $nominalInput = (int) $nominalInput;
 
-        for ($i = 1; $i <= 15; $i++) {
-            $statusKunjungan = $request->input("status_kunjungan{$i}");
-            $nominalInput = $request->input("nominal{$i}", 0);
+        // Cek apakah data tagihan untuk kunjungan_ke sudah ada
+        $existingTagihan = Tagihan::where('vendor_id', $vendorId)
+            ->where('kunjungan_ke', $i)
+            ->first();
 
-            // Cek apakah data tagihan untuk kunjungan_ke sudah ada
-            $existingTagihan = Tagihan::where('vendor_id', $vendorId)
-                ->where('kunjungan_ke', $i)
-                ->first();
+        $action = $existingTagihan ? 'update' : 'insert';
 
-            $action = $existingTagihan ? 'update' : 'insert';
+        if ($existingTagihan) {
+            $nominal = $existingTagihan->uang_masuk;
+        } else {
+            $nominal = in_array($statusKunjungan, ['ada orang', 'tertunda']) ? $nominalInput : 0;
+        }
 
-            if ($existingTagihan) {
-                $nominal = $existingTagihan->uang_masuk;
+        // Hitung jumlah retur jika status 'ada orang' atau 'tertunda'
+        $jumlahRetur = 0;
+        if (in_array($statusKunjungan, ['ada orang', 'tertunda']) && $nominal >= 0) {
+            if ($nominal < $maxNominal) {
+                $jumlahRetur = floor(($maxNominal - $nominal) / $returValue);
             } else {
-                $nominal = in_array($statusKunjungan, ['ada orang', 'tertunda']) ? $nominalInput : 0;
-            }
-
-            // Hitung jumlah retur jika status 'ada orang' atau 'tertunda'
-            $jumlahRetur = 0;
-            if (in_array($statusKunjungan, ['ada orang', 'tertunda']) && $nominal >= 0) {
-                if ($nominal < $maxNominal) {
-                    $jumlahRetur = floor(($maxNominal - $nominal) / $returValue);
-                } else {
-                    $jumlahRetur = 0;
-                }
-            }
-
-            // Simpan data tagihan jika status kunjungan diisi
-            if ($statusKunjungan) {
-                $oldTagihanData = $existingTagihan ? $existingTagihan->toArray() : null;
-                $tagihan = Tagihan::updateOrCreate(
-                    [
-                        'vendor_id'    => $vendorId,
-                        'kunjungan_ke' => $i
-                    ],
-                    [
-                        'status_kunjungan' => $statusKunjungan,
-                        'uang_masuk'       => in_array($statusKunjungan, ['ada orang', 'tertunda']) ? $nominal : 0,
-                        'retur'            => $jumlahRetur,
-                        'tanggal_masuk'    => now(),
-                        'daerah_id'        => $vendor->daerah_id,
-                    ]
-                );
-
-                ActivityLog::log(
-                    $action,
-                    'tagihans',
-                    $tagihan->id,
-                    $oldTagihanData,
-                    $tagihan->toArray(),
-                    "Tagihan untuk kunjungan ke-$i berhasil dibuat atau diperbarui"
-                );
-
-                // Buat data retur jika diperlukan
-                if ($jumlahRetur > 0) {
-                    $retur = Retur::create([
-                        'tagihan_id'    => $tagihan->id,
-                        'vendor_id'     => $vendorId,
-                        'nominal_debet' => $nominal,
-                        'jumlah_retur'  => $jumlahRetur,
-                        'keterangan'    => "Retur untuk kunjungan ke-$i"
-                    ]);
-
-                    ActivityLog::log(
-                        'insert',
-                        'returs',
-                        $retur->id,
-                        null,
-                        $retur->toArray(),
-                        "Retur untuk tagihan kunjungan ke-$i berhasil dibuat"
-                    );
-                }
+                $jumlahRetur = 0;
             }
         }
 
-        return redirect()->route('tagihan.index', ['vendor' => $vendorId]);
+        // Simpan data tagihan jika status kunjungan diisi
+        if ($statusKunjungan) {
+            $oldTagihanData = $existingTagihan ? $existingTagihan->toArray() : null;
+            $tagihan = Tagihan::updateOrCreate(
+                [
+                    'vendor_id'    => $vendorId,
+                    'kunjungan_ke' => $i
+                ],
+                [
+                    'status_kunjungan' => $statusKunjungan,
+                    'uang_masuk'       => in_array($statusKunjungan, ['ada orang', 'tertunda']) ? $nominal : 0,
+                    'retur'            => $jumlahRetur,
+                    'tanggal_masuk'    => now(),
+                    'daerah_id'        => $vendor->daerah_id,
+                ]
+            );
+
+            ActivityLog::log(
+                $action,
+                'tagihans',
+                $tagihan->id,
+                $oldTagihanData,
+                $tagihan->toArray(),
+                "Tagihan untuk kunjungan ke-$i berhasil dibuat atau diperbarui"
+            );
+
+            // Buat data retur jika diperlukan
+            if ($jumlahRetur > 0) {
+                $retur = Retur::create([
+                    'tagihan_id'    => $tagihan->id,
+                    'vendor_id'     => $vendorId,
+                    'nominal_debet' => $nominal,
+                    'jumlah_retur'  => $jumlahRetur,
+                    'keterangan'    => "Retur untuk kunjungan ke-$i"
+                ]);
+
+                ActivityLog::log(
+                    'insert',
+                    'returs',
+                    $retur->id,
+                    null,
+                    $retur->toArray(),
+                    "Retur untuk tagihan kunjungan ke-$i berhasil dibuat"
+                );
+            }
+        }
     }
+
+    return redirect()->route('tagihan.index', ['vendor' => $vendorId]);
+}
 
     public function edit($id)
 {
@@ -343,63 +347,115 @@ public function create($vendor_id)
     }
 
     public function history(Request $request)
-    {
-        if (Auth::user()->role == 'admin') {
-            if ($request->filled('start_date') && $request->filled('end_date')) {
-                $startDate = $request->input('start_date');
-                $endDate   = Carbon::parse($request->input('end_date'))->endOfDay();
+{
+    if (Auth::user()->role == 'admin') {
+        // --- Tetapkan Filter Bulan untuk Perhitungan Total Retur ---
+        if ($request->filled('month')) {
+            [$totalYear, $totalMonth] = explode('-', $request->input('month'));
+        } else {
+            $totalYear = now()->year;
+            $totalMonth = now()->month;
+        }
+        // Total retur selalu dihitung untuk data dalam bulan tersebut
+        $totalRetur = Tagihan::with('retur')
+            ->whereYear('tanggal_masuk', $totalYear)
+            ->whereMonth('tanggal_masuk', $totalMonth)
+            ->get()
+            ->sum(function ($item) {
+                return $item->retur ? $item->retur->jumlah_retur : 0;
+            });
 
-                $tagihanQuery = Tagihan::with(['vendor', 'retur'])
-                    ->whereBetween('tanggal_masuk', [$startDate, $endDate]);
+        // --- Buat Query Dasar untuk Tagihan ---
+        $tagihanQuery = Tagihan::with(['vendor', 'retur']);
 
-                $year = $month = '';
-            } elseif ($request->filled('month')) {
-                [$year, $month] = explode('-', $request->input('month'));
-
-                $tagihanQuery = Tagihan::with(['vendor', 'retur'])
-                    ->whereYear('tanggal_masuk', $year)
-                    ->whereMonth('tanggal_masuk', $month);
-            } else {
-                $year = now()->year;
-                $month = now()->month;
-
-                $tagihanQuery = Tagihan::with(['vendor', 'retur'])
-                    ->whereYear('tanggal_masuk', $year)
-                    ->whereMonth('tanggal_masuk', $month);
-            }
-
-            // Filter berdasarkan kota jika ada input 'kota'
-            if ($request->filled('kota')) {
-                $kota = $request->input('kota');
-                $tagihanQuery->whereHas('vendor', function($q) use ($kota) {
-                    $q->whereHas('wilayah.daerah', function($q2) use ($kota) {
-                        $q2->where('kota', $kota);
-                    });
-                });
-            }
-
-            // Gantikan get() dengan paginate(10)
-            $tagihan = $tagihanQuery->paginate(10);
-
-            // Ambil daftar kota untuk filter dari model Wilayah
-            $kotaList = Wilayah::with('daerah')->get()
-                            ->pluck('daerah.kota')
-                            ->unique();
-        } else if (Auth::user()->role == 'sales') {
-            $lastMonth = now()->subMonth();
-            $year = $lastMonth->year;
-            $month = $lastMonth->month;
-
-            $tagihan = Tagihan::with(['vendor', 'retur'])
-                ->whereYear('tanggal_masuk', $year)
-                ->whereMonth('tanggal_masuk', $month)
-                ->paginate(5);
-
-            $kotaList = collect();
+        // Filter berdasarkan tanggal spesifik (jika diisi)
+        if ($request->filled('tanggal')) {
+            $tagihanQuery->whereDate('tanggal_masuk', $request->input('tanggal'));
         }
 
-        return view('tagihan.history', compact('tagihan', 'year', 'month', 'kotaList'));
+        // Filter berdasarkan rentang tanggal (jika diisi)
+        if ($request->filled('start_date') && $request->filled('end_date')) {
+            $startDate = $request->input('start_date');
+            $endDate   = Carbon::parse($request->input('end_date'))->endOfDay();
+            $tagihanQuery->whereBetween('tanggal_masuk', [$startDate, $endDate]);
+        }
+
+        // Filter berdasarkan bulan (jika diisi)
+        if ($request->filled('month')) {
+            [$year, $month] = explode('-', $request->input('month'));
+            $tagihanQuery->whereYear('tanggal_masuk', $year)
+                         ->whereMonth('tanggal_masuk', $month);
+        } else {
+            // Jika tidak ada filter bulan, tetapkan default ke bulan berjalan
+            $year = now()->year;
+            $month = now()->month;
+            $tagihanQuery->whereYear('tanggal_masuk', $year)
+                         ->whereMonth('tanggal_masuk', $month);
+        }
+
+        // Filter berdasarkan kota (jika diisi)
+        if ($request->filled('kota')) {
+            $kota = $request->input('kota');
+            $tagihanQuery->whereHas('vendor', function ($q) use ($kota) {
+                $q->whereHas('wilayah.daerah', function ($q2) use ($kota) {
+                    $q2->where('kota', $kota);
+                });
+            });
+        }
+
+        // --- Hitung Rekap Retur Harian (khusus admin) ---
+        if ($request->filled('retur_tanggal')) {
+            // Jika ada filter retur khusus, ambil data retur hanya pada tanggal tersebut
+            $returTanggal = $request->input('retur_tanggal');
+            $dailyRetur = (clone $tagihanQuery)->whereDate('tanggal_masuk', $returTanggal)->get()
+                ->groupBy(function ($item) {
+                    return \Carbon\Carbon::parse($item->tanggal_masuk)->format('Y-m-d');
+                })->map(function ($group) {
+                    return $group->sum(function ($item) {
+                        return $item->retur ? $item->retur->jumlah_retur : 0;
+                    });
+                });
+        } else {
+            // Jika tidak ada filter retur khusus, ambil 5 data retur harian terbaru
+            $dailyRetur = (clone $tagihanQuery)->get()
+                ->groupBy(function ($item) {
+                    return \Carbon\Carbon::parse($item->tanggal_masuk)->format('Y-m-d');
+                })->map(function ($group) {
+                    return $group->sum(function ($item) {
+                        return $item->retur ? $item->retur->jumlah_retur : 0;
+                    });
+                })
+                ->sortKeysDesc() // urutkan tanggal secara menurun
+                ->take(5);       // ambil 5 data terbaru
+        }
+
+        // Paginate data tagihan (misalnya 10 data per halaman)
+        $tagihan = $tagihanQuery->paginate(10);
+
+        // Ambil daftar kota untuk filter dari model Wilayah
+        $kotaList = Wilayah::with('daerah')->get()
+            ->pluck('daerah.kota')
+            ->unique();
+    } elseif (Auth::user()->role == 'sales') {
+        // Untuk sales, gunakan data default (misalnya data dari bulan sebelumnya)
+        $lastMonth = now()->subMonth();
+        $year = $lastMonth->year;
+        $month = $lastMonth->month;
+        $tagihanQuery = Tagihan::with(['vendor', 'retur'])
+            ->whereYear('tanggal_masuk', $year)
+            ->whereMonth('tanggal_masuk', $month);
+        $totalRetur = $tagihanQuery->get()->sum(function ($item) {
+            return $item->retur ? $item->retur->jumlah_retur : 0;
+        });
+        $tagihan = $tagihanQuery->paginate(5);
+        $kotaList = collect();
+        $tanggal = null;
+        $dailyRetur = collect();
     }
+
+    return view('tagihan.history', compact('tagihan', 'year', 'month', 'kotaList', 'totalRetur', 'dailyRetur', 'totalYear', 'totalMonth'));
+}
+
 
     public function export(Request $request)
     {

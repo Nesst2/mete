@@ -24,8 +24,9 @@
                 <input type="text" name="search" id="search" class="form-control" placeholder="Masukkan kata kunci..." value="{{ request('search') }}">
             </div>
 
+            @if(in_array(Auth::user()->role, ['admin', 'sales']))
+            <!-- Filter Berdasarkan Kota (hanya admin) -->
             @if(Auth::user()->role == 'admin')
-            <!-- Filter Berdasarkan Kota -->
             <div class="col-md-3 mb-2">
                 <label for="kota">Filter Berdasarkan Kota:</label>
                 <select name="kota" id="kota" class="form-select" onchange="this.form.submit()">
@@ -37,8 +38,10 @@
                     @endforeach
                 </select>
             </div>
+            @endif
 
-            <!-- Filter Berdasarkan Status Vendor -->
+            <!-- Filter Berdasarkan Status Vendor (hanya admin) -->
+            @if(Auth::user()->role == 'admin')
             <div class="col-md-3 mb-2">
                 <label for="status">Filter Berdasarkan Status Vendor:</label>
                 <select name="status" id="status" class="form-select" onchange="this.form.submit()">
@@ -50,26 +53,30 @@
             </div>
             @endif
 
-            <!-- Filter Tanggal Harian (di-lock dalam satu bulan, misalnya bulan berjalan) -->
+            <!-- Filter Checklist / Status Kunjungan Vendor -->
+            <div class="col-md-3 mb-2">
+                <label for="checklist">Status Kunjungan Vendor:</label>
+                <select name="checklist" id="checklist" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- Semua Vendor --</option>
+                    <option value="belum" {{ request('checklist') == 'belum' ? 'selected' : '' }}>Belum Pernah Dikunjungi (bulan ini)</option>
+                    <option value="sudah" {{ request('checklist') == 'sudah' ? 'selected' : '' }}>Sudah Pernah Dikunjungi (bulan ini)</option>
+                </select>
+            </div>
+            @endif
+
+            <!-- Filter Tanggal Harian (untuk bulan berjalan) -->
             @php
-                // Tentukan min dan max berdasarkan bulan berjalan
                 $defaultMin = \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d');
                 $defaultMax = \Carbon\Carbon::now()->endOfMonth()->format('Y-m-d');
             @endphp
             <div class="col-md-3 mb-2">
-                <label for="start_date">Dari Tanggal:</label>
-                <input type="date" name="start_date" id="start_date" class="form-control"
-                       placeholder="Pilih tanggal"
-                       value="{{ request('start_date') }}" min="{{ $defaultMin }}" max="{{ $defaultMax }}">
+                <label for="tanggal_filter">Pilih Tanggal:</label>
+                <input type="date" name="tanggal_filter" id="tanggal_filter" class="form-control"
+                    value="{{ request('tanggal_filter') }}"
+                    min="{{ $defaultMin }}" max="{{ $defaultMax }}">
             </div>
         </div>
         <div class="row">
-            <div class="col-md-3 mb-2">
-                <label for="end_date">Sampai Tanggal:</label>
-                <input type="date" name="end_date" id="end_date" class="form-control"
-                       placeholder="Pilih tanggal"
-                       value="{{ request('end_date') }}" min="{{ $defaultMin }}" max="{{ $defaultMax }}">
-            </div>
             <div class="col-md-3 mb-2 align-self-end">
                 <button type="submit" class="btn btn-primary">Filter</button>
                 <a href="{{ route('tagihan.index') }}" class="btn btn-secondary">Clear Filter</a>
@@ -78,12 +85,13 @@
         <div class="row">
             <div class="col">
                 <small class="text-muted">
-                    Jika Anda mengisi filter tanggal, hanya vendor yang memiliki tagihan pada rentang tersebut yang akan ditampilkan.<br>
-                    Jika tidak diisi, semua vendor akan ditampilkan.
+                    Jika Anda mengisi filter tanggal, hanya vendor dengan tagihan pada tanggal tersebut (dalam bulan berjalan) yang akan ditampilkan.<br>
+                    Filter checklist akan mempertimbangkan tagihan yang terjadi di bulan berjalan.
                 </small>
             </div>
         </div>
     </form>
+
 
     <table class="table table-bordered">
         <thead>
@@ -101,16 +109,37 @@
         </thead>
         <tbody>
             @forelse($vendors as $vendor)
+                @php
+                    // Ambil tagihan vendor yang terjadi di bulan berjalan
+                    $tagihanCurrentMonth = $vendor->tagihan->filter(function($tagihan) use ($defaultMin, $defaultMax) {
+                        return $tagihan->tanggal_masuk >= $defaultMin && $tagihan->tanggal_masuk <= $defaultMax;
+                    })->sortByDesc('created_at')->values();
+                @endphp
+
+                {{-- Filter checklist vendor hanya dengan tagihan bulan berjalan --}}
+                @if(request('checklist') == 'belum' && $tagihanCurrentMonth->count() > 0)
+                    @continue
+                @elseif(request('checklist') == 'sudah' && $tagihanCurrentMonth->count() == 0)
+                    @continue
+                @endif
+
                 {{-- Untuk Sales: tampilkan vendor hanya jika statusnya bukan nonaktif --}}
                 @if(Auth::user()->role == 'sales' && $vendor->status == 'nonaktif')
                     @continue
                 @endif
 
                 @php
-                    // Ambil data tagihan (bisa kosong jika vendor belum ada tagihan pada filter tanggal)
-                    $tagihans = $vendor->tagihan->sortByDesc('created_at')->values();
+                    // Jika filter tanggal (tanggal_filter) diisi, ambil tagihan sesuai tanggal tersebut
+                    if(request('tanggal_filter')) {
+                        $selectedDate = request('tanggal_filter');
+                        $tagihans = $tagihanCurrentMonth->filter(function($tagihan) use ($selectedDate) {
+                            return \Carbon\Carbon::parse($tagihan->tanggal_masuk)->toDateString() === $selectedDate;
+                        })->sortByDesc('created_at')->values();
+                    } else {
+                        $tagihans = $tagihanCurrentMonth;
+                    }
                     
-                    // Misal: cek kondisi untuk tanda peringatan (contoh: tagihan dengan status 'ada orang' atau 'tertunda' dan uang_masuk <= 10000)
+                    // Contoh pengecekan untuk tanda peringatan
                     $redMark = $tagihans->filter(function($tagihan) {
                         return ($tagihan->status_kunjungan == 'ada orang' || $tagihan->status_kunjungan == 'tertunda')
                                && $tagihan->uang_masuk <= 10000;
@@ -118,9 +147,7 @@
                 @endphp
 
                 <tr class="{{ $redMark ? 'table-danger' : '' }}">
-                    <td>
-                        {{ $vendor->kode_vendor }} {{-- Menampilkan data kode vendor --}}
-                    </td>
+                    <td>{{ $vendor->kode_vendor }}</td>
                     <td>
                         {!! $redMark ? '<i class="bi bi-exclamation-circle-fill text-danger"></i> ' : '' !!}
                         {{ $vendor->nama }}

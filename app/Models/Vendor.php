@@ -18,7 +18,8 @@ class Vendor extends Model {
         'nomor_hp',
         'location_link',
         'gambar_vendor',
-        //'daerah_id',
+        'daerah_id',
+        'wilayah_id',
         'status'
     ];
     

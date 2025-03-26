@@ -22,7 +22,7 @@
         </div>
         <div class="form-group">
             <label for="keterangan">Keterangan</label>
-            <input type="text" class="form-control" name="keterangan" value="{{ old('keterangan') }}">
+            <input type="text" class="form-control" name="keterangan" value="{{ old('keterangan') }}" required>
         </div>
         <div class="form-group">
             <label for="jam_operasional">Jam Operasional</label>
